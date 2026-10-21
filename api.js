@@ -167,7 +167,7 @@ async function createNote(event) {
         renderNote(note, true);
 
         showStatus(
-            `Note created successfully (ID: ${note.id}).`,
+            `Note created (status ${result.status}, id ${note.id}).`,
             "success"
         );
 
