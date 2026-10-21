@@ -1,4 +1,5 @@
 
+
 const API_URL = "https://jsonplaceholder.typicode.com/posts";
 
 const loadBtn = document.getElementById("load-btn");
@@ -9,12 +10,13 @@ const titleInput = document.getElementById("title-input");
 const bodyInput = document.getElementById("body-input");
 const submitBtn = document.getElementById("submit-btn");
 
+// Display status messages.
 function showStatus(message, type = "") {
     statusText.textContent = message;
     statusText.className = type;
 }
-// Reusable function for making API requests.
 
+// Reusable function for making API requests.
 async function request(url, options = {}) {
     const response = await fetch(url, options);
 
@@ -32,12 +34,50 @@ async function request(url, options = {}) {
     };
 }
 
+// Display one note, including its Delete button.
+function renderNote(note, prepend = false) {
+    const item = document.createElement("li");
+    item.className = "note-item";
+    item.dataset.id = String(note.id);
 
-// Load 10 notes from the practice API.
+    const heading = document.createElement("h3");
+    heading.textContent = note.title || "Untitled note";
+
+    const paragraph = document.createElement("p");
+    paragraph.textContent = note.body || "No body provided.";
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.type = "button";
+    deleteBtn.textContent = "Delete";
+
+    deleteBtn.addEventListener("click", () => {
+        deleteNote(note.id, deleteBtn);
+    });
+
+    item.append(heading, paragraph, deleteBtn);
+
+    if (prepend) {
+        notesList.prepend(item);
+    } else {
+        notesList.appendChild(item);
+    }
+}
+
+// Display an empty-state message.
+function showEmptyMessage() {
+    notesList.replaceChildren();
+
+    const emptyMessage = document.createElement("li");
+    emptyMessage.textContent =
+        "No notes to display. Load notes or create one.";
+
+    notesList.appendChild(emptyMessage);
+}
+
+// Load 10 notes from the API.
 async function loadNotes() {
     loadBtn.disabled = true;
-    statusText.className = "";
-    statusText.textContent = "Loading notes...";
+    showStatus("Loading notes...");
 
     try {
         const result = await request(`${API_URL}?_limit=10`);
@@ -46,33 +86,25 @@ async function loadNotes() {
         notesList.replaceChildren();
 
         if (notes.length === 0) {
-            const emptyMessage = document.createElement("li");
-            emptyMessage.textContent = "No notes found. Try again later.";
-            notesList.appendChild(emptyMessage);
-        } else {
-            notes.forEach(note => {
-                const item = document.createElement("li");
-                item.className = "note-item";
-
-                const title = document.createElement("h3");
-                title.textContent = note.title;
-
-                const body = document.createElement("p");
-                body.textContent = note.body;
-
-                item.append(title, body);
-                notesList.appendChild(item);
-            });
+            showEmptyMessage();
+            showStatus("No notes found.", "success");
+            return;
         }
 
-        statusText.textContent =
-            `Loaded ${notes.length} notes from the server.`;
-        statusText.className = "success";
+        notes.forEach(note => {
+            renderNote(note);
+        });
+
+        showStatus(
+            `Loaded ${notes.length} notes from the server.`,
+            "success"
+        );
 
     } catch (error) {
-        statusText.textContent =
-            "Unable to load notes. Please check your connection and try again.";
-        statusText.className = "error";
+        showStatus(
+            "Unable to load notes. Please check your connection and try again.",
+            "error"
+        );
 
         console.error(error);
 
@@ -83,13 +115,14 @@ async function loadNotes() {
 
 loadBtn.addEventListener("click", loadNotes);
 
+// Create a new note.
 async function createNote(event) {
     event.preventDefault();
 
     const title = titleInput.value.trim();
     const body = bodyInput.value.trim();
 
-    // Validate the title before sending a request.
+    // Validate the title.
     if (!title) {
         showStatus("Please enter a note title.", "error");
         titleInput.focus();
@@ -97,7 +130,10 @@ async function createNote(event) {
     }
 
     if (title.length > 100) {
-        showStatus("Title must not exceed 100 characters.", "error");
+        showStatus(
+            "Title must not exceed 100 characters.",
+            "error"
+        );
         titleInput.focus();
         return;
     }
@@ -120,21 +156,18 @@ async function createNote(event) {
 
         const note = result.data;
 
-        // Show the newly created note at the top of the list.
-        const item = document.createElement("li");
-        item.className = "note-item";
+        // Remove the empty-state message before displaying the note.
+        if (
+            notesList.children.length === 1 &&
+            !notesList.firstElementChild.dataset.id
+        ) {
+            notesList.replaceChildren();
+        }
 
-        const heading = document.createElement("h3");
-        heading.textContent = note.title;
-
-        const paragraph = document.createElement("p");
-        paragraph.textContent = note.body || "No body provided.";
-
-        item.append(heading, paragraph);
-        notesList.prepend(item);
+        renderNote(note, true);
 
         showStatus(
-            `Note created (status ${result.status}, id ${note.id}).`,
+            `Note created successfully (ID: ${note.id}).`,
             "success"
         );
 
@@ -145,6 +178,7 @@ async function createNote(event) {
             "Unable to create the note. Please try again.",
             "error"
         );
+
         console.error(error);
 
     } finally {
@@ -153,3 +187,49 @@ async function createNote(event) {
 }
 
 noteForm.addEventListener("submit", createNote);
+
+// Delete a note.
+async function deleteNote(id, deleteBtn) {
+    deleteBtn.disabled = true;
+    showStatus("Deleting note...");
+
+    try {
+        const result = await request(
+            `${API_URL}/${encodeURIComponent(id)}`,
+            {
+                method: "DELETE"
+            }
+        );
+
+        const item = deleteBtn.closest("li");
+
+        if (item) {
+            item.remove();
+        }
+
+        // Check whether any notes remain.
+        const remainingNotes = notesList.querySelectorAll(
+            "li[data-id]"
+        );
+
+        if (remainingNotes.length === 0) {
+            showEmptyMessage();
+        }
+
+        showStatus(
+            `Note deleted successfully).`,
+            "success"
+        );
+
+    } catch (error) {
+        showStatus(
+            "Unable to delete the note. Please try again.",
+            "error"
+        );
+
+        console.error(error);
+
+    } finally {
+        deleteBtn.disabled = false;
+    }
+}
